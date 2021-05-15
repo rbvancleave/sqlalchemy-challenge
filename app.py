@@ -27,6 +27,7 @@ Base.prepare(engine, reflect=True)
 # Save references to each table
 Measurement = Base.classes.measurement
 Station = Base.classes.station
+session = Session(engine)
 
 # Flask Setup
 app = Flask(__name__)
@@ -38,19 +39,16 @@ def welcome():
     return (
         f"Available Routes:<br/>"
         f"/api/v1.0/precipitation<br/>"
-        f"/api/v1.0/station"
+        f"/api/v1.0/stations<br/>"
+        f"/api/v.0/tobs<br/>"
     )
 
 @app.route("/api/v1.0/precipitation")
 def precipitation():
-    # Create our session (link) from Python to the DB
-    session = Session(engine)
 
     """Return a list of all dates and prcp"""
     # Query all dates
     results = session.query(Measurement.date,Measurement.prcp).all()
-
-    session.close()
 
     data = []
     for date,prcp in results:
@@ -59,31 +57,33 @@ def precipitation():
         date_dict['prcp']=prcp
         data.append(date_dict)
 
-    return jsonify(data)
+    return jsonify(data=data)
 
 @app.route("/api/v1.0/station")
 def stations():
-    session = Session(engine)
 
-    results = session.query(Station.station)
-    return jsonify(results)
+    stations = session.query(Station.station).all()
+    stations = list(np.ravel(stations))
+    return jsonify(stations=stations)
 
 @app.route("/api/v1.0/tobs")
 def tobs():
     session = Session(engine)
-    
-    data = session.query(Measurement.date, Measurement.tobs).filter(Measurement.date >= start)\
+    end = dt.date(2017,8,23)
+
+    # Calculate the date one year from the last date in data set.
+    for i in range(1,30):
+        if end - dt.date(2016,8,i) == dt.timedelta(365):
+            start = dt.date(2016,8,i)
+            break
+        else:
+            continue
+
+    tobs = session.query(Measurement.date, Measurement.tobs).filter(Measurement.date >= start)\
         .filter(Measurement.station=='USC00519281').all()
-    
-    data = []
+    tobs = list(np.ravel(tobs))
 
-    for date,tobs in results:
-        date_dict = {}
-        date_dict['date']=date
-        date_dict['tobs']=tobs
-        data.append(date_dict)
-
-     return jsonify(data)
+    return jsonify(tobs = tobs)
 
 if __name__ == '__main__':
     app.run(debug=True)
